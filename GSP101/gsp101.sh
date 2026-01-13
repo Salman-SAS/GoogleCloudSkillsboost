@@ -1,7 +1,7 @@
 #!/bin/bash
 
 ZONE=us-central1-a
-VM_NAME=apache-vm
+VM_NAME=prd-eng-j4o
 
 gcloud compute instances create $VM_NAME \
 --zone=$ZONE \
@@ -17,8 +17,6 @@ gcloud compute firewall-rules create allow-http \
 gcloud compute ssh $VM_NAME --zone=$ZONE --command="
 sudo apt update &&
 sudo apt install -y apache2 &&
-sudo systemctl start apache2 &&
-sudo systemctl enable apache2
+echo 'Hello World!' | sudo tee /var/www/html/index.html &&
+sudo systemctl restart apache2
 "
-
-gcloud compute instances list --filter="name=$VM_NAME"
