@@ -16,6 +16,11 @@ LOCAL_DB_PASS='Password1*'
 WP_PATH=/var/www/html/wordpress
 
 # -----------------------------
+# 0️⃣ Enable Cloud SQL API
+# -----------------------------
+gcloud services enable sqladmin.googleapis.com || true
+
+# -----------------------------
 # 1️⃣ Create Cloud SQL instance
 # -----------------------------
 gcloud sql instances create $CLOUDSQL_INSTANCE \
@@ -24,10 +29,20 @@ gcloud sql instances create $CLOUDSQL_INSTANCE \
     --region=$REGION \
     --gce-zone=$ZONE || true
 
-# Wait until the instance is ready
+# -----------------------------
+# 1b️⃣ Wait until the instance is RUNNABLE
+# -----------------------------
 echo "Waiting for Cloud SQL instance to be READY..."
-gcloud sql instances describe $CLOUDSQL_INSTANCE --format="value(state)" | grep -w "RUNNABLE"
-sleep 30
+while true; do
+    STATE=$(gcloud sql instances describe $CLOUDSQL_INSTANCE --format="value(state)" 2>/dev/null)
+    if [ "$STATE" == "RUNNABLE" ]; then
+        echo "Cloud SQL instance is ready!"
+        break
+    else
+        echo "Waiting 10s..."
+        sleep 10
+    fi
+done
 
 # -----------------------------
 # 2️⃣ Create the database and user
@@ -40,7 +55,7 @@ gcloud sql users create $DB_USER --instance=$CLOUDSQL_INSTANCE --password=$DB_PA
 # -----------------------------
 BLOG_INSTANCE_IP=$(gcloud compute instances describe blog --zone=$ZONE --format='get(networkInterfaces[0].networkIP)')
 gcloud sql instances patch $CLOUDSQL_INSTANCE \
-    --authorized-networks=$BLOG_INSTANCE_IP/32
+    --authorized-networks=$BLOG_INSTANCE_IP/32 --quiet
 
 # -----------------------------
 # 4️⃣ Dump local database
@@ -52,7 +67,7 @@ mysqldump -u $LOCAL_DB_USER -p$LOCAL_DB_PASS $LOCAL_DB_NAME > /tmp/wordpress.sql
 # 5️⃣ Import dump to Cloud SQL
 # -----------------------------
 echo "Importing dump to Cloud SQL..."
-gcloud sql import sql $CLOUDSQL_INSTANCE /tmp/wordpress.sql --database=$DB_NAME
+gcloud sql import sql $CLOUDSQL_INSTANCE /tmp/wordpress.sql --database=$DB_NAME --quiet
 
 # -----------------------------
 # 6️⃣ Update wp-config.php
